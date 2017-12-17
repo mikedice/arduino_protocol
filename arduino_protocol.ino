@@ -1,74 +1,42 @@
 #include <parser.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+int commandCount = 0;
 
-const char* message = "Hello from Arduino";
+// Process a packet from the Protocol
 void ProcessPacket(Packet* packet){
-    char buffer[128];
-    
-    Serial.println("processing packet");
-    sprintf(buffer,"Sig: %s", packet->Sig); 
-    Serial.println(buffer);
-    
-    sprintf(buffer, "Command: %s", packet->Command);
-    Serial.println(buffer);
+   char buffer[128];
+   sprintf(buffer, "Arduino processed command %s, command count %d", packet->Command, commandCount++);
+   SerializeMessage("ACK", buffer);
 
-    sprintf(buffer, "DataLen: %d", packet->DataLength);
-    Serial.println(buffer);
-
-    
-    Serial.println(" ");
-    DeletePacket(packet); // done with the packet
-    ResetParser();
+   DeletePacket(packet); // done with the packet
+   ResetParser(); // reset and get ready for next packet
 }
 
-void TestStream(char* stream){
-    size_t len = strlen(stream);
-    for (size_t i = 0; i < len; i++){
-        ProcessStreamByte(stream[i], &ProcessPacket);
-    }
+// Serialize a message according to Protocol format and send over the serial port
+void SerializeMessage(char* command, char* message)
+{
+  Serial.println("[--");
+  Serial.print("PKT.V1 "); Serial.println(command);
+  if (message != NULL)
+  {
+    int messageLen = strlen(message);
+    Serial.print("LEN: "); Serial.println(messageLen);  
+    Serial.print(message); // no line break after message
+  }
+  else
+  {
+    Serial.println("LEN: 0");  
+  }
 }
 
 void setup() {
-
     Serial.begin(57600);
-
-    Serial.println("Protocol tests are starting...");
     ResetParser();
-    const char *test1 = "[--\r\n"
-    "PKT.V1 HELLO\r\n"
-    "LEN: 6\r\n"
-    "abc123";
-    TestStream((char*)test1);
-    
-    const char *test2 = "[--\r\n"
-    "PKT.V1 HELLOREPLY\r\n"
-    "LEN: 11\r\n"
-    "hello reply";
-    TestStream((char*)test2);
-
-    const char *test3 = "[--\r\n"
-    "PKT.V1 PING\r\n"
-    "LEN: 0\r\n";
-    TestStream((char*)test3);
-
-    Serial.println("Send new packet from arduino back to console listener");
-    PacketBuffer *pBuffer = CreatePacketBuffer("HELLO-REPLY", (unsigned char*)message, strlen(message));
-    if (pBuffer != NULL){
-      Serial.write(pBuffer->Data, pBuffer->DataLength);
-    }
-    DeletePacketBuffer(pBuffer);
-
-    Serial.println(" ");
-    Serial.println(" ");
-    Serial.println("Protocol tests are completed. Beginning to listen");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (Serial.available()){
+  while (Serial.available()){
     byte byteRead = Serial.read();
     ProcessStreamByte(byteRead, &ProcessPacket);
   }
